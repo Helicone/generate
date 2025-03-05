@@ -1,7 +1,7 @@
 {
   "name": "@helicone/generate",
   "version": "1.0.0",
-  "description": "A TypeScript package that works for both TS and JS users",
+  "description": "A light and modern interface for Helicone's generateRouter API",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -12,15 +12,25 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run --environment node",
+    "test:watch": "vitest --environment node"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "prompt",
+    "llm",
+    "helicone",
+    "api",
+    "ai",
+    "generate"
+  ],
+  "author": "Helicone",
+  "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.11.24",
+    "dotenv": "^16.4.7",
     "tsup": "^8.0.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.0"
   },
   "publishConfig": {
     "access": "public"
