@@ -85,6 +85,8 @@ Always required: `HELICONE_API_KEY`
 | Google Vertex AI | `GOOGLE_VERTEXAI_API_KEY`, `GOOGLE_VERTEXAI_REGION`, `GOOGLE_VERTEXAI_PROJECT`, `GOOGLE_VERTEXAI_LOCATION` |
 | OpenRouter | `OPENROUTER_API_KEY` |
 
+---
+
 ## API Reference
 
 ### `generate(input)`
