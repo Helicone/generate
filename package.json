@@ -5,6 +5,13 @@
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "files": [
     "dist"
   ],
@@ -14,6 +21,15 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --environment node",
     "test:watch": "vitest --environment node"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Helicone/helicone.git",
+    "directory": "generate"
+  },
+  "homepage": "https://helicone.ai",
+  "engines": {
+    "node": ">=16.0.0"
   },
   "keywords": [
     "prompt",

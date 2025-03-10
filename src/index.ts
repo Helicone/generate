@@ -25,8 +25,15 @@ export interface GenerateParams {
 
   /**
    * Chat history for chat-based prompts
+   *
+   * Coming soon: In cases where promptId is not provided, the chat history will be used to generate a response
    */
   chat?: string[];
+
+  /**
+   * Coming soon: Callback function to handle chunks of the generated response
+   */
+  onChunk?: (chunk: string) => void;
 
   /**
    * User ID for tracking
@@ -80,20 +87,7 @@ interface SuccessResponse {
 }
 
 // Internal configuration
-const BASE_URL = "http://localhost:8791"; // "https://generate.helicone.ai";
-
-/**
- * Format chat history into a string format
- * @private
- */
-function formatChatHistory(chat: string[]): string {
-  return chat
-    .map((message, index) => {
-      const role = index % 2 === 0 ? "User" : "Assistant";
-      return `${role}: ${message}`;
-    })
-    .join("\n\n");
-}
+const BASE_URL = "https://generate.helicone.ai"; // "http://localhost:8791";
 
 /**
  * Generate a response using a Helicone prompt
@@ -130,11 +124,13 @@ function formatChatHistory(chat: string[]): string {
  * chat.push("can you help me with my homework?");
  * chat.push(await generate({promptId: "homework-helper", chat}));
  */
-export async function generate(input: GenerateInput): Promise<string> {
+export async function generate(input: GenerateInput): Promise<unknown> {
   // Get API key from environment
   const apiKey = process.env.HELICONE_API_KEY;
   if (!apiKey) {
-    throw new Error("HELICONE_API_KEY environment variable is not set");
+    throw new Error(
+      "HELICONE_API_KEY environment variable is not set or is unreachable"
+    );
   }
 
   // Normalize input to GenerateParams
@@ -143,26 +139,20 @@ export async function generate(input: GenerateInput): Promise<string> {
   // Prepare request body
   const body: Record<string, any> = {
     promptId: params.promptId,
-  };
+    version: params.version ?? "production",
+    inputs: params.inputs ?? {},
+    chat: params.chat ?? [],
 
-  // Add optional parameters
-  if (params.version !== undefined) {
-    body.version = params.version;
-  }
+    properties: {
+      userId: params.userId,
+      sessionId: params.sessionId,
+      cache: params.cache,
+    },
+  };
 
   // Handle variables
   if (params.inputs && Object.keys(params.inputs).length > 0) {
     body.inputs = params.inputs;
-  }
-
-  // Handle chat history
-  // TODO: This is wrong
-  if (params.chat && params.chat.length > 0) {
-    // Convert chat array to inputs format
-    body.inputs = {
-      ...(body.inputs || {}),
-      chat_history: formatChatHistory(params.chat),
-    };
   }
 
   // Prepare headers
@@ -185,72 +175,73 @@ export async function generate(input: GenerateInput): Promise<string> {
   // Add provider API keys from environment variables
   const providerKeys = [
     "OPENAI",
-    "ANTHROPIC",
-    "GOOGLE",
     "AZURE",
-    "TOGETHER",
-    "COHERE",
-    "MISTRAL",
-    "GROQ",
-    "PERPLEXITY",
-    "FIREWORKS",
-    "ANYSCALE",
-    "CLOUDFLARE",
-    "DEEPINFRA",
-    "AWS",
-    "X",
-    "DEEPSEEK",
+    "ANTHROPIC",
+    "BEDROCK",
+    "GOOGLE_GEMINI",
+    "GOOGLE_VERTEXAI",
     "OPENROUTER",
-    "AVIAN",
-    "NEBIUS",
-    "NOVITA",
   ];
 
+  // Add provider region, project, and location if available
+  let hasAtLeastOneProviderKey = false;
   for (const provider of providerKeys) {
     const envKey = `${provider}_API_KEY`;
+    const regionKey = `${provider}_REGION`;
+    const projectKey = `${provider}_PROJECT`;
+    const locationKey = `${provider}_LOCATION`;
     if (process.env[envKey]) {
-      headers[`${provider}_API_KEY`] = process.env[envKey]!;
+      headers[envKey] = process.env[envKey]!;
+      hasAtLeastOneProviderKey = true;
     }
+    if (process.env[regionKey]) {
+      headers[regionKey] = process.env[regionKey];
+    }
+    if (process.env[projectKey]) {
+      headers[projectKey] = process.env[projectKey];
+    }
+    if (process.env[locationKey]) {
+      headers[locationKey] = process.env[locationKey];
+    }
+  }
+
+  // Check if at least one provider key is present
+  if (!hasAtLeastOneProviderKey) {
+    throw new Error(
+      "At least one provider API key is required. Please set at least one of the following environment variables: " +
+        providerKeys.map((provider) => `${provider}_API_KEY`).join(", ")
+    );
   }
 
   // Make the API request
-  const response = await fetch(BASE_URL, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
+  try {
+    const response = await fetch(BASE_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
 
-  // Handle errors
-  if (!response.ok) {
-    const errorData = (await response
-      .json()
-      .catch(() => null)) as ErrorResponse | null;
+    // Handle errors
+    if (!response.ok) {
+      const errorData = (await response
+        .json()
+        .catch(() => null)) as ErrorResponse | null;
 
-    if (errorData?.error?.message) {
-      throw new Error(
-        `Helicone API error: ${errorData.error.message} (${errorData.error.code})`
-      );
-    } else {
-      throw new Error(
-        errorData?.helicone_error || `Helicone API error: ${response.status}`
-      );
+      if (errorData?.error?.message) {
+        throw new Error(
+          `Helicone API error: ${errorData.error.message} (${errorData.error.code})`
+        );
+      } else {
+        throw new Error(
+          errorData?.helicone_error || `Helicone API error: ${response.status}`
+        );
+      }
     }
+
+    // Parse and return the raw response without any processing
+    return await response.json();
+  } catch (error) {
+    console.error("Error generating response:", error);
+    throw error;
   }
-
-  // Parse and return the response
-  const responseData = (await response.json()) as SuccessResponse;
-
-  // Handle OpenAI-style response structure (choices[0].message.content)
-  if (
-    responseData.choices &&
-    Array.isArray(responseData.choices) &&
-    responseData.choices.length > 0 &&
-    responseData.choices[0].message &&
-    responseData.choices[0].message.content
-  ) {
-    return responseData.choices[0].message.content;
-  }
-
-  // Fall back to data.content if it exists
-  return JSON.stringify(responseData, null, 2);
 }
